@@ -321,10 +321,14 @@ impl<B: BufMut> HttpBuilder<B> {
   /// # Ok(())
   /// # }
   /// ```
-  pub fn header<'data, V: HttpWriteable, H: Into<Header<'data, V>>>(
+  pub fn header<'data, V, H>(
     &mut self,
     header: H,
-  ) -> Result<&mut Self, InsufficientSpaceError> {
+  ) -> Result<&mut Self, InsufficientSpaceError>
+  where
+    V: HttpWriteable,
+    H: Into<Header<'data, V>>,
+  {
     header.into().write_to(&mut self.buffer)?;
     Ok(self)
   }

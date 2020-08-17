@@ -108,3 +108,66 @@ impl<'data> Uri<'data> {
     self.uri
   }
 }
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+
+  #[test]
+  fn uri_round_trip() {
+    let uri = Uri::new(b"/test.html");
+    assert_eq!(uri.as_bytes(), b"/test.html");
+
+    let bytes: &[u8] = b"/const?ababababba#const.fn";
+    let const_uri = Uri::new_const(bytes);
+    assert_eq!(const_uri.as_bytes(), bytes);
+  }
+
+  #[test]
+  fn uri_new_unchecked_round_trip() {
+    // Ok as long as it never goes into a request.
+    let uri = unsafe { Uri::new_unchecked(b" ") };
+    assert_eq!(uri.as_bytes(), b" ");
+  }
+
+  macro_rules! uri_invalid {
+    {
+      $( $name:ident => $value:literal; )*
+    } => {
+      mod invalid_uri {
+        use super::*;
+
+        $(
+          #[test]
+          #[should_panic]
+          fn $name() {
+            let _ = Uri::new($value);
+          }
+        )*
+
+        mod const_ {
+          use super::*;
+
+          $(
+            #[test]
+            #[should_panic]
+            fn $name() {
+              let _ = Uri::new_const($value);
+            }
+          )*
+        }
+      }
+    }
+  }
+
+  uri_invalid! {
+    empty       => b"";
+    only_space  => b" ";
+    only_crlf   => b"\r\n";
+
+    contains_space => b"https://contains space.com/";
+    contains_crlf  => b"contains\r\newline.com/example";
+    contains_cr    => b"has\rCR";
+    contains_lf    => b"has\nLF";
+  }
+}

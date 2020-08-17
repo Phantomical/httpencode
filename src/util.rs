@@ -16,21 +16,6 @@ impl<T> RetTypeHack for fn() -> T {
 
 pub(crate) type Never = <fn() -> ! as RetTypeHack>::Return;
 
-pub(crate) const fn ilog10(mut x: u128) -> usize {
-  let mut result = 0;
-
-  if x == 0 {
-    const_panic!("Attempted to take logarithm of 0");
-  }
-
-  while x != 0 {
-    result += 1;
-    x /= 10;
-  }
-
-  result
-}
-
 type Result<T = (), E = InsufficientSpaceError> = core::result::Result<T, E>;
 
 macro_rules! declare_ext {
@@ -138,3 +123,72 @@ pub trait FallibleBufMut: BufMut {
 }
 
 impl<B: BufMut> FallibleBufMut for B {}
+
+pub(crate) const fn ilog10(mut x: u128) -> usize {
+  let mut result = 0;
+
+  if x == 0 {
+    return 1;
+  }
+
+  while x != 0 {
+    result += 1;
+    x /= 10;
+  }
+
+  result
+}
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+
+  macro_rules! ilog10_tests {
+    {
+      $(
+        $expected:expr => [ $( $test:expr ),* ]
+      ),* $(,)?
+    } => {
+      $(
+        $(
+          assert_eq!(ilog10($test), $expected);
+        )*
+      )*
+    }
+  }
+
+  #[test]
+  fn ilog10_success() {
+    ilog10_tests! {
+      1 => [0, 1, 9],
+      2 => [10, 99],
+      3 => [100, 999],
+      4 => [1000, 9999],
+      5 => [10000, 99999],
+      6 => [100000, 999999],
+      7 => [1000000, 9999999],
+      8 => [10000000, 99999999],
+      9 => [100000000, 999999999],
+      10=> [1000000000, 9999999999],
+      11=> [10000000000, 99999999999],
+      12=> [100000000000, 999999999999],
+      13=> [1000000000000, 9999999999999],
+      14=> [10000000000000, 99999999999999],
+      15=> [100000000000000, 999999999999999],
+      16=> [1000000000000000, 9999999999999999],
+      17=> [10000000000000000, 99999999999999999],
+      18=> [100000000000000000, 999999999999999999],
+      19=> [1000000000000000000, 9999999999999999999],
+    }
+  }
+
+  #[test]
+  fn u8_buffer_too_short() {
+    use crate::HttpWriteable;
+
+    let val = b' ';
+    let mut buffer = vec![];
+
+    assert!(val.write_to(&mut &mut buffer[..]).is_err());
+  }
+}

@@ -14,7 +14,7 @@ use crate::{
 ///
 /// let header = Header::checked_new(CONTENT_TYPE, "text/plain");
 /// ```
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq, Hash)]
 pub struct CheckedField<'data>(&'data str);
 
 impl<'data> CheckedField<'data> {
@@ -80,7 +80,7 @@ impl<'data> CheckedField<'data> {
 ///
 /// # Ok(())
 /// # }
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq, Hash)]
 pub struct CheckedValue<'data>(&'data [u8]);
 
 impl<'data> CheckedValue<'data> {
@@ -121,19 +121,26 @@ impl<'data> CheckedValue<'data> {
     Self(value)
   }
 
+  /// Access the underlying byte slice of of this value.
+  pub const fn as_bytes(&self) -> &'data [u8] {
+    self.0
+  }
+
   const fn check_valid_const(value: &[u8]) -> bool {
     let mut prev = 0;
     while let Some(idx) = Self::memchr_const(b'\r', value, prev) {
-      if value.len() - idx < 3 {
-        break;
-      }
-
-      prev = idx
-        + match (value[1], value[2]) {
+      prev = match value.len() - idx {
+        0 | 1 => break,
+        2 => match value[1] {
+          b'\n' => return false,
+          _ => break,
+        },
+        _ => match (value[1], value[2]) {
           (b'\n', b' ') | (b'\n', b'\t') => 3,
           (b'\n', _) => return false,
           _ => 1,
-        };
+        },
+      } + idx;
     }
 
     true
@@ -235,5 +242,94 @@ impl<'data, V: HttpWriteable> Header<'data, V> {
     buf.try_put_slice(b": ")?;
     self.value.write_to(buf)?;
     buf.try_put_slice(&CRLF)
+  }
+}
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+
+  #[test]
+  fn checked_field_new_valid() {
+    let _ = CheckedField::new("Content-Type");
+  }
+
+  #[test]
+  #[should_panic]
+  fn checked_field_new_invalid() {
+    let _ = CheckedField::new("Spaced Header");
+  }
+
+  macro_rules! checked_field_invalid {
+    {
+      $( $name:ident => $value:literal; )*
+    } => {
+      mod invalid_checked_field {
+        use super::*;
+
+        $(
+          #[test]
+          #[should_panic]
+          fn $name() {
+            let _ = CheckedField::new($value);
+          }
+        )*
+      }
+    }
+  }
+
+  checked_field_invalid! {
+    contains_crlf       => "Has\r\nNewline";
+    contains_del        => "Has\x7FDEL";
+    contains_spaces     => "Inner    Spaces";
+    contains_high_byte  => "HI\u{0080}BYTE";
+
+    empty => "";
+  }
+
+  macro_rules! checked_value_valid {
+    {
+      $( $name:ident => $value:literal; )*
+    } => {
+      mod invalid_checked_value {
+        use super::*;
+
+        $(
+          #[test]
+          fn $name() {
+            let v1 = CheckedValue::new($value);
+            let v2 = unsafe { CheckedValue::new_unchecked($value) };
+
+            assert!(v1 == v2);
+            assert!(v1.as_bytes() == $value);
+          }
+        )*
+      }
+    }
+  }
+
+  #[test]
+  fn checked_value_invalid() {
+    assert!(CheckedValue::try_new(b"\r\n").is_err());
+    assert!(CheckedValue::try_new(b"\r\na").is_err());
+    assert!(CheckedValue::try_new(b"\r\n\r\n").is_err());
+  }
+
+  #[test]
+  #[should_panic]
+  fn checked_value_invalid_crlf() {
+    let _ = CheckedValue::new(b"\r\n");
+  }
+
+  checked_value_valid! {
+    contains_nul  => b"\0";
+    empty         => b"";
+    invalid_utf8  => b"\xff\x00";
+    crlf_w_space  => b"\r\n ";
+    crlf_w_tab    => b"\r\n\t";
+    multispace    => b"spaced     out";
+    cr            => b"\r";
+    cr_space      => b"\r ";
+    cr_space_a    => b"\r a";
   }
 }

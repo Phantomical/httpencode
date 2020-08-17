@@ -8,7 +8,7 @@ edition = "2018"
 
 [features]
 std = [ "bytes/std" ]
-default = [ "std", "httparse" ]
+default = [ "std" ]
 
 # Disable outputting reason phrases by default
 no-reason-phrase = []

@@ -59,3 +59,16 @@ impl<'data> Version<'data> {
     self.minor
   }
 }
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+
+  #[test]
+  fn test_round_trip() {
+    let http = Version::http(10, 4);
+
+    assert_eq!(http.major(), 10);
+    assert_eq!(http.minor(), 4);
+  }
+}
