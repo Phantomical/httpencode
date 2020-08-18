@@ -73,7 +73,7 @@ impl<'msg> Status<'msg> {
   }
 
   #[cfg(feature = "no-reason-phrase")]
-  const fn reason_phrase(mut code: u16) -> Option<&'static str> {
+  const fn reason_phrase(_: u16) -> Option<&'static str> {
     None
   }
 }
@@ -221,6 +221,7 @@ macro_rules! arraytable {
   }}
 }
 
+#[cfg_attr(not(features="no-reason-phrase"), allow(dead_code))]
 const REASON_PHRASES: &[Option<&str>] = &arraytable![
   // 1xx codes
   [100] = "Continue",
