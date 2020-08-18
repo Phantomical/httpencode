@@ -1,0 +1,6 @@
+
+ignore-not-existing: true
+llvm: true
+branch: true
+output-type: lcov
+output-path: target/coverage.lcov
